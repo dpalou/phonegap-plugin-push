@@ -99,8 +99,10 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
     [self.clobberedDelegate userNotificationCenter:center
                     didReceiveNotificationResponse:response
                              withCompletionHandler:completionHandler];
+    bool isSilentEncryptedTriggeredByPlugin = [[response.notification.request.content.userInfo
+        objectForKey:@"silentencryptedtriggeredbyplugin"] boolValue];
 
-    if (![response.notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]]) {
+    if (![response.notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]] && !isSilentEncryptedTriggeredByPlugin) {
         return;
     }
 
