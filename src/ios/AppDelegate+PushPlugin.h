@@ -16,4 +16,6 @@
     didReceiveRemoteNotification:(NSDictionary *)userInfo
           fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler;
 
+@property (nonatomic, retain) id<UNUserNotificationCenterDelegate> clobberedDelegate;
+
 @end

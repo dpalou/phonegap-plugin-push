@@ -9,6 +9,26 @@
 #import "PushPluginConstants.h"
 #import <objc/runtime.h>
 
+static char clobberedDelegateKey;
+
+@interface WeakObjectContainer<T> : NSObject
+
+@property (nonatomic, readonly, weak) T object;
+
+@end
+
+@implementation WeakObjectContainer
+
+- (instancetype) initWithObject:(id)object
+{
+    if (self = [super init]) {
+        _object = object;
+    }
+    return self;
+}
+
+@end
+
 @implementation AppDelegate (PushPlugin)
 
 // its dangerous to override a method from within a category.
@@ -36,6 +56,7 @@
 
 - (AppDelegate *)pushPluginSwizzledInit {
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    self.clobberedDelegate = center.delegate;
     center.delegate = self;
     // This actually calls the original init method over in AppDelegate. Equivilent to calling super
     // on an overrided method, this is not recursive, although it appears that way. neat huh?
@@ -60,6 +81,14 @@ fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler {
+    [self.clobberedDelegate userNotificationCenter:center
+                           willPresentNotification:notification
+                             withCompletionHandler:completionHandler];
+
+    if (![notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]]) {
+        return;
+    }
+
     NSDictionary *notificationInfo = @{@"notification" : notification, @"completionHandler" : completionHandler};
     [NSNotificationCenter.defaultCenter postNotificationName:PluginWillPresentNotification object:nil userInfo:notificationInfo];
 }
@@ -67,8 +96,28 @@ fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
 didReceiveNotificationResponse:(UNNotificationResponse *)response
          withCompletionHandler:(void (^)(void))completionHandler {
+    [self.clobberedDelegate userNotificationCenter:center
+                    didReceiveNotificationResponse:response
+                             withCompletionHandler:completionHandler];
+
+    if (![response.notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]]) {
+        return;
+    }
+
     NSDictionary *notificationInfo = @{@"response" : response, @"completionHandler" : completionHandler};
     [NSNotificationCenter.defaultCenter postNotificationName:PluginDidReceiveNotificationResponse object:nil userInfo:notificationInfo];
+}
+
+- (id<UNUserNotificationCenterDelegate>)clobberedDelegate
+{
+    WeakObjectContainer<id<UNUserNotificationCenterDelegate>> *weakDelegateContainer = objc_getAssociatedObject(self, &clobberedDelegateKey);
+    return weakDelegateContainer.object;
+}
+
+- (void)setClobberedDelegate:(id<UNUserNotificationCenterDelegate>)clobberedDelegate
+{
+    WeakObjectContainer<id<UNUserNotificationCenterDelegate>> *weakDelegateContainer = [[WeakObjectContainer alloc] initWithObject:clobberedDelegate];
+    objc_setAssociatedObject(self, &clobberedDelegateKey, weakDelegateContainer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 @end
