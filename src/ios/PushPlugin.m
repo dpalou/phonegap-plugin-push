@@ -564,9 +564,9 @@
         }
 
         // Special notification handling due to encrypted notifications being sent as data not a notification.
-        if ([notificationMessage objectForKey:@"encrypted"] != nil) {
-            bool isEncrypted = [[notificationMessage objectForKey:@"encrypted"] boolValue];
-            bool isSilentEncryptedTriggeredByPlugin = [[notificationMessage
+        if ([self.notificationMessage objectForKey:@"encrypted"] != nil) {
+            bool isEncrypted = [[self.notificationMessage objectForKey:@"encrypted"] boolValue];
+            bool isSilentEncryptedTriggeredByPlugin = [[self.notificationMessage
                 objectForKey:@"silentencryptedtriggeredbyplugin"] boolValue];
             if (isEncrypted && !isSilentEncryptedTriggeredByPlugin) {
                 NSArray *fields = @[@"userfromfullname", @"userfromid", @"sitefullname", @"smallmessage",
