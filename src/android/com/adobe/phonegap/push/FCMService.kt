@@ -13,13 +13,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.text.Html
 import android.text.Spanned
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.text.HtmlCompat
 import com.adobe.phonegap.push.PushPlugin.Companion.isActive
 import com.adobe.phonegap.push.PushPlugin.Companion.isInForeground
 import com.adobe.phonegap.push.PushPlugin.Companion.sendExtras
@@ -269,12 +269,12 @@ class FCMService : FirebaseMessagingService() {
      */
     return when {
       key == PushConstants.BODY
-              || key == PushConstants.ALERT
-              || key == PushConstants.MP_MESSAGE
-              || key == PushConstants.GCM_NOTIFICATION_BODY
-              || key == PushConstants.TWILIO_BODY
-              || key == messageKey
-              || key == PushConstants.AWS_PINPOINT_BODY
+        || key == PushConstants.ALERT
+        || key == PushConstants.MP_MESSAGE
+        || key == PushConstants.GCM_NOTIFICATION_BODY
+        || key == PushConstants.TWILIO_BODY
+        || key == messageKey
+        || key == PushConstants.AWS_PINPOINT_BODY
       -> {
         PushConstants.MESSAGE
       }
@@ -999,13 +999,12 @@ class FCMService : FirebaseMessagingService() {
           setNotification(notId, "")
 
           message?.let { messageStr ->
-            val bigText = NotificationCompat.BigTextStyle().run {
-              bigText(fromHtml(messageStr))
-              setBigContentTitle(fromHtml(it.getString(PushConstants.TITLE)))
+            val bigText = NotificationCompat.BigTextStyle()
+              .bigText(fromHtml(messageStr))
+              .setBigContentTitle(fromHtml(it.getString(PushConstants.TITLE)))
 
-              it.getString(PushConstants.SUMMARY_TEXT)?.let { summaryText ->
-                setSummaryText(fromHtml(summaryText))
-              }
+            it.getString(PushConstants.SUMMARY_TEXT)?.let { summaryText ->
+              bigText.setSummaryText(fromHtml(summaryText))
             }
 
             mBuilder.setContentText(fromHtml(messageStr))
@@ -1118,29 +1117,32 @@ class FCMService : FirebaseMessagingService() {
     }
 
     val output = Bitmap.createBitmap(
-      bitmap.getWidth(),
-      bitmap.getHeight(),
+      bitmap.width,
+      bitmap.height,
       Bitmap.Config.ARGB_8888
     )
 
     val canvas = Canvas(output)
-    val color = Color.RED
-    val paint = Paint()
-    val rect = Rect(0, 0, bitmap.getWidth(), bitmap.getHeight())
-
-    paint.setAntiAlias(true)
     canvas.drawARGB(0, 0, 0, 0)
-    paint.setColor(color)
-    val cx = (bitmap.getWidth() / 2).toFloat()
-    val cy = (bitmap.getHeight() / 2).toFloat()
-    val radius = if (cx < cy) cx else cy
+
+    val paint = Paint().apply {
+      isAntiAlias = true
+      color = Color.RED
+    }
+
+    val cx = (bitmap.width / 2).toFloat()
+    val cy = (bitmap.height / 2).toFloat()
+    val radius = minOf(cx, cy)
+
     canvas.drawCircle(cx, cy, radius, paint)
 
-    paint.setXfermode(PorterDuffXfermode(PorterDuff.Mode.SRC_IN))
-    canvas.drawBitmap(bitmap, rect, rect, paint)
+    // Set the Xfermode to SRC_IN after drawing the circle,
+    // so that the bitmap will clip correctly inside the circle.
+    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+
+    canvas.drawBitmap(bitmap, 0f, 0f, paint)
 
     bitmap.recycle()
-
     return output
   }
 
@@ -1296,7 +1298,7 @@ class FCMService : FirebaseMessagingService() {
   }
 
   private fun fromHtml(source: String?): Spanned? {
-    return if (source != null) Html.fromHtml(source) else null
+    return if (source != null) HtmlCompat.fromHtml(source, HtmlCompat.FROM_HTML_MODE_LEGACY) else null
   }
 
   private fun isAvailableSender(from: String?): Boolean {

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
   xmlns:android="http://schemas.android.com/apk/res/android"
-  id="@moodlehq/phonegap-plugin-push" version="4.0.0-moodle.12">
+  id="@moodlehq/phonegap-plugin-push" version="6.0.1-moodle.1-dev">
 
   <name>Cordova Push Plugin</name>
-  <description>Enable receiving push notifications on Android, iOS and Windows devices. Android uses Firebase Cloud Messaging. iOS uses Apple APNS Notifications. Windows uses Microsoft WNS Notifications.</description>
+  <description>Enable receiving push notifications on Android and iOS devices. Android uses Firebase Cloud Messaging. iOS uses Apple APNS Notifications.</description>
 
   <license>MIT</license>
 
@@ -14,7 +14,7 @@
 
   <engines>
     <engine name="cordova" version=">=10.0.0"/>
-    <engine name="cordova-android" version=">=9.0.0"/>
+    <engine name="cordova-android" version=">=12.0.0"/>
     <engine name="cordova-ios" version=">=6.0.0"/>
   </engines>
 
@@ -32,15 +32,16 @@
       <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
       <uses-permission android:name="android.permission.WAKE_LOCK"/>
       <uses-permission android:name="android.permission.VIBRATE"/>
+      <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
       <uses-permission android:name="${applicationId}.permission.PushHandlerActivity"/>
-      <uses-permission android:name="${applicationId}.permission.BackgroundHandlerActivity"/>
       <permission android:name="${applicationId}.permission.PushHandlerActivity" android:protectionLevel="signature"></permission>
+      <uses-permission android:name="${applicationId}.permission.BackgroundHandlerActivity"/>
       <permission android:name="${applicationId}.permission.BackgroundHandlerActivity" android:protectionLevel="signature"></permission>
     </config-file>
 
     <config-file target="AndroidManifest.xml" parent="/manifest/application">
-      <activity android:name="com.adobe.phonegap.push.PushHandlerActivity" android:exported="true" android:permission="${applicationId}.permission.PushHandlerActivity"/>
-      <activity android:name="com.adobe.phonegap.push.BackgroundHandlerActivity" android:exported="true" android:permission="${applicationId}.permission.BackgroundHandlerActivity">
+      <activity android:name="com.adobe.phonegap.push.PushHandlerActivity" android:exported="false" android:permission="${applicationId}.permission.PushHandlerActivity"/>
+      <activity android:name="com.adobe.phonegap.push.BackgroundHandlerActivity" android:exported="false" android:permission="${applicationId}.permission.BackgroundHandlerActivity">
         <intent-filter>
           <action android:name="com.adobe.phonegap.push.background.MESSAGING_EVENT"/>
           <category android:name="android.intent.category.DEFAULT" />
@@ -50,7 +51,7 @@
       <receiver android:name="com.adobe.phonegap.push.BackgroundActionButtonHandler"/>
       <receiver android:name="com.adobe.phonegap.push.PushDismissedHandler"/>
 
-      <service android:name="com.adobe.phonegap.push.FCMService" android:exported="true">
+      <service android:name="com.adobe.phonegap.push.FCMService" android:exported="false">
         <intent-filter>
           <action android:name="com.google.firebase.MESSAGING_EVENT"/>
         </intent-filter>
@@ -60,10 +61,7 @@
     <config-file target="config.xml" parent="/*">
       <preference name="AndroidXEnabled" value="true" />
       <preference name="GradlePluginGoogleServicesEnabled" value="true" />
-      <preference name="GradlePluginGoogleServicesVersion" value="4.3.8" />
-
       <preference name="GradlePluginKotlinEnabled" value="true" />
-      <preference name="GradlePluginKotlinVersion" value="1.5.20" />
     </config-file>
 
     <preference name="ANDROIDX_CORE_VERSION" default="1.6.+"/>
@@ -97,11 +95,12 @@
   </platform>
 
   <platform name="ios">
-    <preference name="IOS_FIREBASE_MESSAGING_VERSION" default="~> 10.23.0"/>
+    <preference name="IOS_FIREBASE_MESSAGING_VERSION" default="10.24.0"/>
 
     <config-file target="config.xml" parent="/*">
       <feature name="PushNotification">
         <param name="ios-package" value="PushPlugin"/>
+        <param name="onload" value="true"/>
       </feature>
     </config-file>
 
@@ -119,12 +118,19 @@
       <string>production</string>
     </config-file>
 
-    <source-file src="src/ios/AppDelegate+notification.m"/>
+    <source-file src="src/ios/AppDelegate+PushPlugin.m"/>
     <source-file src="src/ios/PushPlugin.m"/>
+    <source-file src="src/ios/PushPluginConstants.m"/>
+    <source-file src="src/ios/PushPluginFCM.m"/>
+    <source-file src="src/ios/PushPluginSettings.m"/>
     <source-file src="src/ios/EncryptionHandler.m"/>
     <source-file src="src/ios/Crypto.swift"/>
-    <header-file src="src/ios/AppDelegate+notification.h"/>
+
+    <header-file src="src/ios/AppDelegate+PushPlugin.h"/>
     <header-file src="src/ios/PushPlugin.h"/>
+    <source-file src="src/ios/PushPluginConstants.h"/>
+    <header-file src="src/ios/PushPluginFCM.h"/>
+    <header-file src="src/ios/PushPluginSettings.h"/>
     <header-file src="src/ios/EncryptionHandler.h"/>
 
     <framework src="PushKit.framework"/>
@@ -140,15 +146,4 @@
     </podspec>
   </platform>
 
-  <platform name="windows">
-    <hook type="after_plugin_install" src="hooks/windows/setToastCapable.js"/>
-
-    <js-module src="src/windows/PushPluginProxy.js" name="PushPlugin">
-      <runs/>
-    </js-module>
-
-    <config-file target="config.xml" parent="/*">
-      <preference name="WindowsToastCapable" value="true"/>
-    </config-file>
-  </platform>
 </plugin>

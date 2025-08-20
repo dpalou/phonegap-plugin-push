@@ -1,5 +1,6 @@
 package com.adobe.phonegap.push
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.app.Activity
@@ -7,6 +8,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ContentResolver
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Resources.NotFoundException
 import android.media.AudioAttributes
 import android.net.Uri
@@ -14,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.android.gms.tasks.Tasks
@@ -37,12 +40,15 @@ class PushPlugin : CordovaPlugin() {
     const val PREFIX_TAG: String = "cordova-plugin-push"
     private const val TAG: String = "$PREFIX_TAG (PushPlugin)"
 
+    private const val REQ_CODE_INITIALIZE_PLUGIN = 0
+
     /**
      * Is the WebView in the foreground?
      */
     var isInForeground: Boolean = false
 
     private var pushContext: CallbackContext? = null
+    private var pluginInitData: JSONArray? = null
     private var gWebView: CordovaWebView? = null
     private val gCachedExtras = Collections.synchronizedList(ArrayList<Bundle>())
 
@@ -299,7 +305,7 @@ class PushPlugin : CordovaPlugin() {
   private fun getNotificationChannelSound(channelData: JSONObject): Pair<Uri?, AudioAttributes?> {
     val audioAttributes = AudioAttributes.Builder()
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-      .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+      .setUsage(AudioAttributes.USAGE_NOTIFICATION)
       .build()
 
     val sound = channelData.optString(PushConstants.SOUND, PushConstants.SOUND_DEFAULT)
@@ -434,10 +440,15 @@ class PushPlugin : CordovaPlugin() {
     // Better Logging
     fun formatLogMessage(msg: String): String = "Execute::Initialize: ($msg)"
 
+    pushContext = callbackContext
+    pluginInitData = data;
+
+    if (!checkForPostNotificationsPermission()) {
+      return
+    }
+
     cordova.threadPool.execute(Runnable {
       Log.v(TAG, formatLogMessage("Data=$data"))
-
-      pushContext = callbackContext
 
       val sharedPref = applicationContext.getSharedPreferences(
         PushConstants.COM_ADOBE_PHONEGAP_PUSH,
@@ -477,12 +488,12 @@ class PushPlugin : CordovaPlugin() {
         } catch (e: InterruptedException) {
           Log.e(TAG, formatLogMessage("Firebase Token Exception ${e.message}"))
           null
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
           Log.e(TAG, formatLogMessage("Firebase Token Exception ${e.message}"))
           null
         }
 
-        if (token != "") {
+        if (token != null && token != "") {
           val registration = JSONObject().put(PushConstants.REGISTRATION_ID, token).apply {
             put(PushConstants.REGISTRATION_TYPE, PushConstants.FCM)
           }
@@ -506,6 +517,9 @@ class PushPlugin : CordovaPlugin() {
       } catch (e: NotFoundException) {
         Log.e(TAG, formatLogMessage("Resources NotFoundException Exception ${e.message}"))
         callbackContext.error(e.message)
+      } catch (e: Exception) {
+        Log.e(TAG, formatLogMessage("Unexpected Exception ${e.message}"))
+        callbackContext.error("An unexpected error occurred: ${e.message}")
       }
 
       jo?.let {
@@ -604,6 +618,26 @@ class PushPlugin : CordovaPlugin() {
     })
   }
 
+  private fun checkForPostNotificationsPermission(): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (!PermissionHelper.hasPermission(this, Manifest.permission.POST_NOTIFICATIONS)) {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(
+            activity,
+            Manifest.permission.POST_NOTIFICATIONS
+          )) {
+          return false
+        }
+        PermissionHelper.requestPermission(
+          this,
+          REQ_CODE_INITIALIZE_PLUGIN,
+          Manifest.permission.POST_NOTIFICATIONS
+        )
+        return false
+      }
+    }
+    return true
+  }
+
   private fun executeActionUnregister(data: JSONArray, callbackContext: CallbackContext) {
     // Better Logging
     fun formatLogMessage(msg: String): String = "Execute::Unregister: ($msg)"
@@ -654,6 +688,9 @@ class PushPlugin : CordovaPlugin() {
       } catch (e: InterruptedException) {
         Log.e(TAG, formatLogMessage("Interrupted ${e.message}"))
         callbackContext.error(e.message)
+      } catch (e: Exception) {
+        Log.e(TAG, formatLogMessage("Unexpected Exception ${e.message}"))
+        callbackContext.error(e.message)
       }
     }
   }
@@ -681,6 +718,8 @@ class PushPlugin : CordovaPlugin() {
       } catch (e: UnknownError) {
         callbackContext.error(e.message)
       } catch (e: JSONException) {
+        callbackContext.error(e.message)
+      } catch (e: Exception) {
         callbackContext.error(e.message)
       }
     }
@@ -807,8 +846,7 @@ class PushPlugin : CordovaPlugin() {
   /**
    * Initialize
    */
-  override fun initialize(cordova: CordovaInterface, webView: CordovaWebView) {
-    super.initialize(cordova, webView)
+  override fun pluginInitialize() {
     isInForeground = true
   }
 
@@ -885,6 +923,31 @@ class PushPlugin : CordovaPlugin() {
     topic?.let {
       Log.d(TAG, "Unsubscribing to topic: $it")
       FirebaseMessaging.getInstance().unsubscribeFromTopic(it)
+    }
+  }
+
+  override fun onRequestPermissionResult(
+    requestCode: Int,
+    permissions: Array<out String>?,
+    grantResults: IntArray?
+  ) {
+    super.onRequestPermissionResult(requestCode, permissions, grantResults)
+
+    for (r in grantResults!!) {
+      if (r == PackageManager.PERMISSION_DENIED) {
+        pushContext?.sendPluginResult(
+          PluginResult(
+            PluginResult.Status.ILLEGAL_ACCESS_EXCEPTION,
+            "Permission to post notifications was denied by the user"
+          )
+        )
+        return
+      }
+    }
+
+    if (requestCode == REQ_CODE_INITIALIZE_PLUGIN)
+    {
+      executeActionInitialize(pluginInitData!!, pushContext!!)
     }
   }
 }
