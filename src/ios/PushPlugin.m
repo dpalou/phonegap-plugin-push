@@ -268,8 +268,14 @@
 
     void (^completionHandler)(UIBackgroundFetchResult) = notification.userInfo[@"completionHandler"];
 
+    bool appIsActive = [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
+    bool isEncrypted = false;
+    if ([userInfo objectForKey:@"encrypted"] != nil) {
+        isEncrypted = [[userInfo objectForKey:@"encrypted"] boolValue];
+    }
+
     // app is in the background or inactive, so only call notification callback if this is a silent push
-    if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) {
+    if (!appIsActive || (self.forceShow && isEncrypted)) {
         NSLog(@"[PushPlugin] app in-active");
         // do some convoluted logic to find out if this should be a silent push.
         long silent = 0;
@@ -312,7 +318,7 @@
             NSLog(@"[PushPlugin] Stored the completion handler for the background processing of notId %@", notIdKey);
 
             self.notificationMessage = [mutableUserInfo copy];
-            self.isForeground = NO;
+            self.isForeground = appIsActive ? YES : NO;
             [self notificationReceived];
         } else {
             NSLog(@"[PushPlugin] Application is not active, saving notification for later.");
@@ -596,8 +602,8 @@
                 }
 
                 UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-                if (state != UIApplicationStateActive) {
-                    // Create notification with decrypted payload for when app is not in the foreground.
+                if (state != UIApplicationStateActive || self.forceShow) {
+                    // Show notification with decrypted payload.
                     [additionalData setObject:[NSNumber numberWithBool:YES] forKey:@"silentencryptedtriggeredbyplugin"];
                     UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
                     content.title = [message objectForKey:@"title"];
